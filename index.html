@@ -1,0 +1,160 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Lua Editor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      height: 100%; width: 100%;
+      overflow: hidden;
+    }
+    #editor-container {
+      height: calc(100% - 160px);
+    }
+    #console {
+      height: 150px;
+      background: #111;
+      color: #0f0;
+      font-family: monospace;
+      overflow-y: auto;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toolbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
+    <span class="navbar-brand">Lua Editor</span>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn btn-sm btn-outline-light" onclick="SetTheme('Light')">☀️ Light</button>
+      <button class="btn btn-sm btn-outline-light" onclick="SetTheme('Dark')">🌙 Dark</button>
+      <button class="btn btn-sm btn-outline-light" onclick="toggleMinimap()">🗺️ Minimap</button>
+      <input id="fontSize" type="number" value="14" min="8" max="32" class="form-control form-control-sm" style="width: 60px;" onchange="updateFontSize(this.value)" />
+      <button class="btn btn-sm btn-success" onclick="runCode()">▶️ Run</button>
+    </div>
+  </nav>
+
+  <!-- Editor -->
+  <div id="editor-container"></div>
+
+  <!-- Console -->
+  <div id="console">-- Console Output --</div>
+
+  <!-- Scripts -->
+  <script src="vs/loader.js"></script>
+  <script>
+    var editor, Proposals = [], minimapEnabled = false;
+
+    require.config({ paths: { 'vs': 'vs' }});
+    require(['vs/editor/editor.main'], function () {
+      monaco.languages.registerCompletionItemProvider('lua', {
+        provideCompletionItems: () => ({ suggestions: Proposals })
+      });
+
+      monaco.editor.defineTheme('net-theme-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [
+          { token: 'global', foreground: '000000' },
+          { token: 'keyword', foreground: 'ff6a00' },
+          { token: 'comment', foreground: '666666' },
+          { token: 'number', foreground: 'ffc600' },
+          { token: 'string', foreground: 'ff8c3a' },
+        ]
+      });
+
+      monaco.editor.defineTheme('net-theme-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'global', foreground: 'FFFFFF', fontStyle: "bold" },
+          { token: 'keyword', foreground: 'ff6a00', fontStyle: "bold" },
+          { token: 'comment', foreground: '666666' },
+          { token: 'number', foreground: 'ffc600' },
+          { token: 'string', foreground: 'ff8c3a' },
+        ]
+      });
+
+      editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: "-- Lua Script\n\nprint('Hello World')",
+        language: 'lua',
+        theme: 'net-theme-light',
+        automaticLayout: true,
+        folding: true,
+        smoothScrolling: true,
+        minimap: { enabled: minimapEnabled },
+        showFoldingControls: "always",
+      });
+
+      loadIntellisense();
+    });
+
+    // Settings Functions
+    function SetTheme(themeName) {
+      monaco.editor.setTheme(themeName === 'Dark' ? 'net-theme-dark' : 'net-theme-light');
+    }
+
+    function toggleMinimap() {
+      minimapEnabled = !minimapEnabled;
+      editor.updateOptions({ minimap: { enabled: minimapEnabled } });
+    }
+
+    function updateFontSize(size) {
+      editor.updateOptions({ fontSize: parseInt(size) });
+    }
+
+    function runCode() {
+      const code = editor.getValue();
+      document.getElementById('console').innerText = "-- Running Code --\n" + code;
+    }
+
+    // IntelliSense Loading
+    function AddIntellisense(label, kind, detail, insertText) {
+      const types = monaco.languages.CompletionItemKind;
+      const typeMap = {
+        Function: types.Function,
+        Method: types.Method,
+        Class: types.Class,
+        Variable: types.Variable,
+        Keyword: types.Keyword,
+        Property: types.Property,
+        Module: types.Module,
+        Field: types.Field,
+        Value: types.Value,
+        Constant: types.Constant,
+        Enum: types.Enum,
+        Interface: types.Interface,
+        Text: types.Text
+      };
+      Proposals.push({
+        label: label,
+        kind: typeMap[kind] || types.Text,
+        detail: detail,
+        insertText: insertText
+      });
+    }
+
+    function loadIntellisense() {
+      const files = {
+        'base.txt': 'Keyword',
+        'globalf.txt': 'Function',
+        'classfunc.txt': 'Method',
+        'globalv.txt': 'Variable',
+        'globalns.txt': 'Class'
+      };
+
+      for (const file in files) {
+        fetch(file)
+          .then(res => res.text())
+          .then(text => {
+            text.split('\n').forEach(item => {
+              if (item.trim()) AddIntellisense(item.trim(), files[file], `From ${file}`, item.trim());
+            });
+          });
+      }
+    }
+  </script>
+</body>
+</html>
